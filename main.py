@@ -1,14 +1,15 @@
 from itertools import combinations, product
 import collections
-from pprint import pprint
 import typing
 import random
-from matplotlib import pyplot as plt
 import sys
-import functools
-import numpy as np
 
-N = 7
+OPTI = True
+
+if not OPTI:
+    from matplotlib import pyplot as plt
+
+N = 9 
 
 Tri = typing.Tuple[int, int, int]
 
@@ -16,15 +17,6 @@ Tri = typing.Tuple[int, int, int]
 def count():
     for a, b, c in combinatons(rangep(7), 3):
         print(a, b, c)
-
-
-def _ptri(tri):
-    print(f'{tri[0]}{tri[1]}{tri[2]}')
-
-def _pS(S):
-    for tri, v in S.items():
-        if v != 0:
-            _ptri(tri)
 
 def sortLex(tri: Tri) -> Tri:
     return tuple(sorted(tri))
@@ -49,26 +41,15 @@ def move(S, a, b):
     return S
 
 
-def _packNb(v, base, padding):
-    return f'{np.base_repr(v, base=base):0>{padding}}'
+def packSTS(f):
+    return hash(tuple([(k, v) for k, v in f.items()]))
 
-packNb = functools.partial(_packNb, base=min(N, 36), padding = max(0, N - 36 + 1))
-
-
-def packSTS(S):
-    result = ''
-    for i in (1, -1):
-        result += ''.join([''.join(packNb(n) for n in tri) for tri, v in S.items() if v == i])
-    return result
 
 def findComp(ones, a, b):
     for tri in ones:
         if (a in tri) and (b in tri):
             return list(set(tri) - set([a, b]))[0]
     # should be unreachable
-
-def packSTS(f):
-    return hash(tuple([(k, v) for k, v in f.items()]))
 
 def chooseComp(ones, a, b):
     choices = []
@@ -99,7 +80,7 @@ def mh():
     a, b = 1, 2
 
  # 1_197504000
-    for n in range(5000):
+    for n in range(int(1e5)):
         ones = [k for k, v in f.items() if v == 1]
         if -1 not in list(f.values()): # f is proper
             x, y, z = random.choice([k for k, v in f.items() if v == 0])
@@ -123,8 +104,9 @@ def mh():
 
     print(f'{len(seen)} systèmes différents')
     # print(sawNewSteps)
-    plt.hist(sawNewSteps)
-    plt.show()
+    if not OPTI:
+        plt.hist(sawNewSteps)
+        plt.show()
 
 def constructSTS(n=15):
     sts = []
