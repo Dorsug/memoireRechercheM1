@@ -9,7 +9,7 @@ OPTI = True
 if not OPTI:
     from matplotlib import pyplot as plt
 
-N = 9 
+N = 9
 
 Tri = typing.Tuple[int, int, int]
 
@@ -21,45 +21,55 @@ def count():
 def sortLex(tri: Tri) -> Tri:
     return tuple(sorted(tri))
 
-def move(S, a, b):
+def move(S, x, y, z, xp, yp, zp):
     for tri in [
-        a,
-        (a[0], b[1], b[2]),
-        (b[0], a[1], b[2]),
-        (b[0], b[1], a[2]),
+        x  + y  + z,
+        x  + yp + zp,
+        xp + y  +  zp,
+        xp + yp + z,
     ]:
-        S[sortLex(tri)] += 1
+        S[tri] += 1
 
     for tri in [
-        (b[0], a[1], a[2]),
-        (a[0], b[1], a[2]),
-        (a[0], a[1], b[2]),
-        b,
+        xp + y  + z,
+        x  + yp + z,
+        x  + y  + zp,
+        xp + yp + zp,
     ]:
-        S[sortLex(tri)] -= 1
+        S[tri] -= 1
 
     return S
 
 
 def packSTS(f):
-    return hash(tuple([(k, v) for k, v in f.items()]))
+    return hash(tuple(sorted([k for k, v in f.items() if v == 1])))
 
 
-def findComp(ones, a, b):
+def findComp(ones, bi):
     for tri in ones:
-        if (a in tri) and (b in tri):
-            return list(set(tri) - set([a, b]))[0]
+        if bi & tri == bi:
+            return bi ^ tri
     # should be unreachable
 
-def chooseComp(ones, a, b):
+def chooseComp(ones, bi):
     choices = []
     for tri in ones:
-        if (a in tri) and (b in tri):
-            choices.append(list(set(tri) - set([a, b]))[0])
+        if bi & tri == bi:
+            choices.append(bi ^ tri)
     assert(len(choices) == 2)
     return random.choice(choices)
 
-def mh():
+def split(h):
+    res = []
+    for i in range(N):
+        t = h & (1 << i)
+        if t > 0:
+            res.append(t)
+    assert(len(res) == 3)
+    return res
+
+
+def mh(steps=1e5):
     f = {k: 0 for k in combinations(range(N), 3)}
 
     # starting system
@@ -74,28 +84,25 @@ def mh():
             f[tri] = 1
 
 
+    f = {sum([(1 << n) for n in k]): v for k, v in f.items()}
     seen = [packSTS(f)]
     sawNewSteps = []
 
-    a, b = 1, 2
-
  # 1_197504000
-    for n in range(int(1e5)):
+    for n in range(int(steps)):
         ones = [k for k, v in f.items() if v == 1]
         if -1 not in list(f.values()): # f is proper
-            x, y, z = random.choice([k for k, v in f.items() if v == 0])
-            xp = findComp(ones, y, z)
-            yp = findComp(ones, x, z)
-            zp = findComp(ones, x, y)
+            x, y, z = split(random.choice([k for k, v in f.items() if v == 0]))
+            xp = findComp(ones, y + z)
+            yp = findComp(ones, x + z)
+            zp = findComp(ones, x + y)
         else: # f is improper
-            x, y, z = next((k for k, v in f.items() if v == -1))
-            xp = chooseComp(ones, y, z)
-            yp = chooseComp(ones, x, z)
-            zp = chooseComp(ones, x, y)
+            x, y, z = split(next((k for k, v in f.items() if v == -1)))
+            xp = chooseComp(ones, y + z)
+            yp = chooseComp(ones, x + z)
+            zp = chooseComp(ones, x + y)
 
-        # print((x, y, z), (xp, yp, zp))
-        f = move(f, (x, y, z), (xp, yp, zp))
-        # breakpoint()
+        f = move(f, x, y, z, xp, yp, zp)
         if -1 not in f.values():
             packf = packSTS(f)
             if packf not in seen:
@@ -103,7 +110,6 @@ def mh():
                 seen.append(packf)
 
     print(f'{len(seen)} systèmes différents')
-    # print(sawNewSteps)
     if not OPTI:
         plt.hist(sawNewSteps)
         plt.show()
@@ -131,7 +137,7 @@ def constructSTS(n=15):
     # print(len(sts))
     print(isSts(sts, n))
 
-def isSts(S, n):
+def isSts(S):
     stsDuo_l = []
     for a, b, c in S:
         stsDuo_l += [(a, b), (a, c), (b, c)]
@@ -141,8 +147,9 @@ def isSts(S, n):
         print(len(stsDuo), len(stsDuo_l))
         print('elements not unique')
         print([k for k, v in collections.Counter(stsDuo_l).items() if v > 1])
+        return False
 
-    allDuos = set(combinations(range(n), 2))
+    allDuos = set(combinations(range(N), 2))
     truth = stsDuo == allDuos
     if not truth:
         print(f'expected {len(allDuos)} couples got {len(stsDuo)}')
