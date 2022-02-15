@@ -3,6 +3,7 @@ import collections
 import typing
 import random
 import sys
+from math import log2
 
 OPTI = True
 
@@ -22,27 +23,20 @@ def sortLex(tri: Tri) -> Tri:
     return tuple(sorted(tri))
 
 def move(S, x, y, z, xp, yp, zp):
-    for tri in [
-        x  + y  + z,
-        x  + yp + zp,
-        xp + y  +  zp,
-        xp + yp + z,
-    ]:
-        S[tri] += 1
+    tr = [set(), set(), set()]
 
-    for tri in [
-        xp + y  + z,
-        x  + yp + z,
-        x  + y  + zp,
-        xp + yp + zp,
-    ]:
-        S[tri] -= 1
+    addOne = {x  + y  + z, x  + yp + zp, xp + y  +  zp, xp + yp + z}
+    subOne = {xp + y  + z, x  + yp + z, x  + y  + zp, xp + yp + zp}
 
-    return S
+    tr[-1] = (S[-1] - addOne) | (S[0] & subOne)
+    tr[0]  = S[0] - ((S[0] & subOne) | (S[0] & addOne)) | (S[-1] & addOne) | (S[1] & subOne)
+    tr[1] = (S[1] - (S[1] & subOne)) | (S[0] & addOne)
+
+    return tr
 
 
 def packSTS(f):
-    return hash(tuple(sorted([k for k, v in f.items() if v == 1])))
+    return hash(tuple(sorted(list(f[1]))))
 
 
 def findComp(ones, bi):
@@ -85,25 +79,27 @@ def mh(steps=1e5):
 
 
     f = {sum([(1 << n) for n in k]): v for k, v in f.items()}
+    f = [{k for k, v in f.items() if v == 0}, {k for k, v in f.items() if v == 1}, set()]
+
     seen = [packSTS(f)]
     sawNewSteps = []
 
  # 1_197504000
     for n in range(int(steps)):
-        ones = [k for k, v in f.items() if v == 1]
-        if -1 not in list(f.values()): # f is proper
-            x, y, z = split(random.choice([k for k, v in f.items() if v == 0]))
+        ones = f[1]
+        if f[-1] == set():
+            x, y, z = split(random.choice(list(f[0])))
             xp = findComp(ones, y + z)
             yp = findComp(ones, x + z)
             zp = findComp(ones, x + y)
         else: # f is improper
-            x, y, z = split(next((k for k, v in f.items() if v == -1)))
+            x, y, z = split(list(f[-1])[0])
             xp = chooseComp(ones, y + z)
             yp = chooseComp(ones, x + z)
             zp = chooseComp(ones, x + y)
 
         f = move(f, x, y, z, xp, yp, zp)
-        if -1 not in f.values():
+        if f[-1] == set():
             packf = packSTS(f)
             if packf not in seen:
                 sawNewSteps.append(n)
@@ -139,7 +135,11 @@ def constructSTS(n=15):
 
 def isSts(S):
     stsDuo_l = []
-    for a, b, c in S:
+    if S[-1] != set():
+        return False
+
+    for tri in list(S[1]):
+        a, b, c = [int(log2(x)) for x in split(tri)]
         stsDuo_l += [(a, b), (a, c), (b, c)]
     stsDuo = set(stsDuo_l)
 
