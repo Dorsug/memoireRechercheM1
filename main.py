@@ -23,16 +23,27 @@ def sortLex(tri: Tri) -> Tri:
     return tuple(sorted(tri))
 
 def move(S, x, y, z, xp, yp, zp):
-    tr = [set(), set(), set()]
+    addOne = [x  + y + z, x + yp + zp, xp + y + zp, xp + yp + z]
+    subOne = [xp + y + z, x + yp + z,  x  + y + zp, xp + yp + zp]
 
-    addOne = {x  + y  + z, x  + yp + zp, xp + y  +  zp, xp + yp + z}
-    subOne = {xp + y  + z, x  + yp + z, x  + y  + zp, xp + yp + zp}
+    temp = [[], [], []]
+    try:
+        if S[-1][0] in addOne:
+            addOne.remove(S[-1][0])
+            S[-1] = []
+    except IndexError:
+        pass
 
-    tr[-1] = (S[-1] - addOne) | (S[0] & subOne)
-    tr[0]  = S[0] - ((S[0] & subOne) | (S[0] & addOne)) | (S[-1] & addOne) | (S[1] & subOne)
-    tr[1] = (S[1] - (S[1] & subOne)) | (S[0] & addOne)
+    for j in reversed(range(len(S[1]))):
+        x = S[1][j]
+        if x in subOne:
+            del(S[1][j])
+            subOne.remove(x)
 
-    return tr
+    S[-1] = subOne
+    S[1] = S[1] + addOne
+
+    return S
 
 
 def packSTS(f):
@@ -79,7 +90,7 @@ def mh(steps=1e5):
 
 
     f = {sum([(1 << n) for n in k]): v for k, v in f.items()}
-    f = [{k for k, v in f.items() if v == 0}, {k for k, v in f.items() if v == 1}, set()]
+    f = [[k for k, v in f.items() if v == 0], [k for k, v in f.items() if v == 1], []]
 
     seen = [packSTS(f)]
     sawNewSteps = []
@@ -87,19 +98,19 @@ def mh(steps=1e5):
  # 1_197504000
     for n in range(int(steps)):
         ones = f[1]
-        if f[-1] == set():
-            x, y, z = split(random.choice(list(f[0])))
+        if f[-1] == []:
+            x, y, z = chooseRandomZero(f)
             xp = findComp(ones, y + z)
             yp = findComp(ones, x + z)
             zp = findComp(ones, x + y)
         else: # f is improper
-            x, y, z = split(list(f[-1])[0])
+            x, y, z = split(f[-1][0])
             xp = chooseComp(ones, y + z)
             yp = chooseComp(ones, x + z)
             zp = chooseComp(ones, x + y)
 
         f = move(f, x, y, z, xp, yp, zp)
-        if f[-1] == set():
+        if f[-1] == []:
             packf = packSTS(f)
             if packf not in seen:
                 sawNewSteps.append(n)
@@ -109,6 +120,14 @@ def mh(steps=1e5):
     if not OPTI:
         plt.hist(sawNewSteps)
         plt.show()
+
+def chooseRandomZero(f):
+    def get():
+        return [1 << x for x in random.sample(range(N), 3)]
+    tri = get()
+    while sum(tri) in (f[1] + f[-1]):
+        tri = get()
+    return tri
 
 def constructSTS(n=15):
     sts = []
