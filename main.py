@@ -12,16 +12,6 @@ if not OPTI:
 
 N = 9
 
-Tri = typing.Tuple[int, int, int]
-
-
-def count():
-    for a, b, c in combinatons(rangep(7), 3):
-        print(a, b, c)
-
-def sortLex(tri: Tri) -> Tri:
-    return tuple(sorted(tri))
-
 def move(S, x, y, z, xp, yp, zp):
     addOne = [x  + y + z, x + yp + zp, xp + y + zp, xp + yp + z]
     subOne = [xp + y + z, x + yp + z,  x  + y + zp, xp + yp + zp]
@@ -95,7 +85,6 @@ def mh(steps=1e5):
     seen = [packSTS(f)]
     sawNewSteps = []
 
- # 1_197504000
     for n in range(int(steps)):
         ones = f[1]
         if f[-1] == []:
@@ -128,55 +117,5 @@ def chooseRandomZero(f):
     while sum(tri) in (f[1] + f[-1]):
         tri = get()
     return tri
-
-def constructSTS(n=15):
-    sts = []
-    sts.append((0, n - 2, n - 1))
-    i = 0
-    everyTriple = set([
-        sortLex(x) for x in product(range(n - 2), repeat=3)
-        if sum(x) % (n - 2) == 0
-    ])
-    for tri in everyTriple:
-        if len(set(tri)) == 2: # TODO need to deal with odd cycle
-            print(tri)
-            sts.append(sortLex(tuple(list(set(tri)) + [n - 1 - (i % 2)])))
-            # print(sts[-1])
-            i += 1
-        elif len(set(tri)) == 1:
-            pass # nothing to be done (only (0, 0, 0) and already dealt with)
-        elif len(set(tri)) == 3:
-            sts.append(sortLex(tri))
-    sts = sorted(list(set(sts)))
-    # pprint(sts)
-    # print(len(sts))
-    print(isSts(sts, n))
-
-def isSts(S):
-    stsDuo_l = []
-    if S[-1] != set():
-        return False
-
-    for tri in list(S[1]):
-        a, b, c = [int(log2(x)) for x in split(tri)]
-        stsDuo_l += [(a, b), (a, c), (b, c)]
-    stsDuo = set(stsDuo_l)
-
-    if len(stsDuo) != len(stsDuo_l):
-        print(len(stsDuo), len(stsDuo_l))
-        print('elements not unique')
-        print([k for k, v in collections.Counter(stsDuo_l).items() if v > 1])
-        return False
-
-    allDuos = set(combinations(range(N), 2))
-    truth = stsDuo == allDuos
-    if not truth:
-        print(f'expected {len(allDuos)} couples got {len(stsDuo)}')
-        print(f'{allDuos - stsDuo} not in sts')
-
-    return truth
-
-
-# constructSTS()
 
 mh()
