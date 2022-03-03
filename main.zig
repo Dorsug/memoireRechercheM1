@@ -28,7 +28,7 @@ pub fn main() !void {
 }
 
 pub fn mh(allocator: std.mem.Allocator, r: std.rand.Random, steps: usize) !void {
-    var seen = std.HashMap([]const Triplet, void, TripletContext, max_load).init(allocator);
+    var seen = std.AutoHashMap(u64, void).init(allocator);
 
     var sample_buf: [universeSize]usize = undefined;
     const sample = Sample(usize).init(r, sample_buf[0..]);
@@ -60,10 +60,12 @@ pub fn mh(allocator: std.mem.Allocator, r: std.rand.Random, steps: usize) !void 
         move(&f, triplet.x, triplet.y, triplet.z, xp, yp, zp);
 
         if (f.neg == null) {
-            var buf = try allocator.alloc(Triplet, f.ones.items.len);
-            std.mem.copy(Triplet, buf, f.ones.items);
-            std.sort.sort(usize, buf, {}, comptime std.sort.asc(usize));
-            try seen.put(buf, {});
+            std.sort.sort(usize, f.ones.items, {}, comptime std.sort.asc(usize));
+            var hasher = std.hash.Wyhash.init(0);
+            for (f.ones.items) |*element| {
+                hasher.update(std.mem.asBytes(element));
+            }
+            try seen.put(hasher.final(), {});
         }
     }
     std.debug.print("seen {}\n", .{seen.count()});
@@ -203,23 +205,3 @@ fn belongs(comptime T: type, list: []const T, x: T) bool {
 
 const STS7 = [_]Triplet{ 7, 25, 97, 42, 82, 76, 52 };
 const STS9 = [_]Triplet{ 7, 73, 273, 161, 266, 146, 98, 140, 84, 292, 56, 448 };
-
-// == HashMap specifics
-
-const max_load = std.hash_map.default_max_load_percentage;
-
-pub const TripletContext = struct {
-    pub fn hash(self: @This(), s: []const Triplet) u64 {
-        _ = self;
-        var hasher = std.hash.Wyhash.init(0);
-        for (s) |*element| {
-            hasher.update(std.mem.asBytes(element));
-        }
-        return hasher.final();
-    }
-    pub fn eql(self: @This(), a: []const Triplet, b: []const Triplet) bool {
-        _ = self;
-        const c = std.mem.eql(Triplet, a, b);
-        return c;
-    }
-};
