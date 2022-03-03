@@ -77,7 +77,7 @@ fn setToZero(comptime T: type, list: []T, x: T) void {
     }
 }
 
-fn move(f: *STS, x: Triplet, y: Triplet, z: usize, xp: usize, yp: usize, zp: usize) void {
+inline fn move(f: *STS, x: Triplet, y: Triplet, z: usize, xp: usize, yp: usize, zp: usize) void {
     var addOne = ([_]Triplet{ x + y + z, x + yp + zp, xp + y + zp, xp + yp + z })[0..];
     var subOne = ([_]Triplet{ xp + y + z, x + yp + z, x + y + zp, xp + yp + zp })[0..];
 
