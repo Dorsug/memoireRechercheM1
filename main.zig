@@ -29,15 +29,16 @@ pub fn main() !void {
 
 pub fn mh(allocator: std.mem.Allocator, r: std.rand.Random, steps: usize) !void {
     var seen = std.AutoHashMap(u64, void).init(allocator);
+    defer seen.deinit();
 
     var sample_buf: [universeSize]usize = undefined;
     const sample = Sample(usize).init(r, sample_buf[0..]);
 
     var f = STS{
         .neg = null,
-        .ones = try std.ArrayList(Triplet).initCapacity(allocator, intialTriplets.len + 0xfff),
-        // TODO count max size of ones
+        .ones = try std.ArrayList(Triplet).initCapacity(allocator, intialTriplets.len + 1),
     };
+    defer f.ones.deinit();
     f.ones.appendSliceAssumeCapacity(intialTriplets[0..]);
 
     var i: usize = 0;
