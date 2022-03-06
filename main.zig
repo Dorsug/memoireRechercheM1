@@ -4,11 +4,6 @@ const logger = std.log.scoped(.main);
 
 // pub const log_level: std.log.Level = .err;
 
-const STEPS = 10_000_000;
-
-const universeSize = 9;
-const intialTriplets = STS9;
-
 const Triplet = usize;
 
 const STS = struct {
@@ -24,22 +19,47 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    try mh(allocator, r, STEPS);
+    const config = parseArgs();
+    try mh(allocator, r, config.steps, config.size, config.sts);
 }
 
-pub fn mh(allocator: std.mem.Allocator, r: std.rand.Random, steps: usize) !void {
+fn parseArgs() struct { steps: usize, size: usize, sts: []const Triplet } {
+    // default values
+    var steps: usize = 0;
+    var sts_index: usize = 7;
+
+    var it = std.process.ArgIterator.init();
+    _ = it.next(); // skip program name
+    if (it.next()) |arg| {
+        steps = std.fmt.parseInt(usize, arg, 10) catch steps;
+    }
+    if (it.next()) |arg| {
+        sts_index = std.fmt.parseInt(usize, arg, 10) catch sts_index;
+    }
+
+    return .{ .steps = steps, .size = sts_index, .sts = initialSTS[sts_index] };
+}
+
+pub fn mh(
+    allocator: std.mem.Allocator,
+    r: std.rand.Random,
+    steps: usize,
+    maxBits: usize,
+    startSts: []const Triplet,
+) !void {
     var seen = std.AutoHashMap(u64, void).init(allocator);
     defer seen.deinit();
 
-    var sample_buf: [universeSize]usize = undefined;
-    const sample = Sample(usize).init(r, sample_buf[0..]);
+    var sample_buf = try allocator.alloc(usize, maxBits);
+    defer allocator.free(sample_buf);
+    const sample = Sample(usize).init(r, sample_buf);
 
     var f = STS{
         .neg = null,
-        .ones = try std.ArrayList(Triplet).initCapacity(allocator, intialTriplets.len + 1),
+        .ones = try std.ArrayList(Triplet).initCapacity(allocator, startSts.len + 1),
     };
     defer f.ones.deinit();
-    f.ones.appendSliceAssumeCapacity(intialTriplets[0..]);
+    f.ones.appendSliceAssumeCapacity(startSts);
 
     var i: usize = 0;
     var xp: Triplet = undefined;
@@ -48,7 +68,7 @@ pub fn mh(allocator: std.mem.Allocator, r: std.rand.Random, steps: usize) !void 
     var triplet: TripletSplit = undefined;
     while (i < steps) : (i += 1) {
         if (f.neg) |neg| {
-            triplet = split(neg);
+            triplet = split(neg, maxBits);
             xp = chooseComp(r, f, triplet.y + triplet.z);
             yp = chooseComp(r, f, triplet.x + triplet.z);
             zp = chooseComp(r, f, triplet.x + triplet.y);
@@ -132,11 +152,11 @@ fn chooseComp(r: std.rand.Random, f: STS, duet: usize) usize {
     return choices[r.int(u1)];
 }
 
-fn split(h: Triplet) TripletSplit {
+fn split(h: Triplet, maxBits: usize) TripletSplit {
     var buf: [3]Triplet = undefined;
     var i: usize = 0;
     var j: usize = 0;
-    while (i < universeSize) : (i += 1) {
+    while (i < maxBits) : (i += 1) {
         var t = h & @shlExact(@as(usize, 1), @intCast(u6, i));
         if (t > 0) {
             buf[j] = t;
@@ -204,6 +224,10 @@ fn belongs(comptime T: type, list: []const T, x: T) bool {
     }
 }
 
-const STS7 = [_]Triplet{ 7, 25, 97, 42, 82, 76, 52 };
-const STS9 = [_]Triplet{ 7, 73, 273, 161, 266, 146, 98, 140, 84, 292, 56, 448 };
-const STS13 = [_]Triplet{7, 25, 97, 385, 1537, 6145, 42, 146, 322, 2562, 5122, 524, 52, 1092, 4228, 2308, 2120, 1160, 4360, 4176, 784, 3088, 2208, 1312, 4640, 704 };
+const initialSTS = blk: {
+    var buf: [15][]const Triplet = undefined;
+    buf[7] = ([_]Triplet{ 7, 25, 97, 42, 82, 76, 52 })[0..];
+    buf[9] = ([_]Triplet{ 7, 73, 273, 161, 266, 146, 98, 140, 84, 292, 56, 448 })[0..];
+    buf[13] = ([_]Triplet{ 7, 25, 97, 385, 1537, 6145, 42, 146, 322, 2562, 5122, 524, 52, 1092, 4228, 2308, 2120, 1160, 4360, 4176, 784, 3088, 2208, 1312, 4640, 704 })[0..];
+    break :blk buf;
+};
