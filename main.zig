@@ -5,6 +5,7 @@ const logger = std.log.scoped(.main);
 // pub const log_level: std.log.Level = .err;
 
 const Triplet = usize;
+const saveBeforeFlush = 100_000;
 
 const STS = struct {
     neg: ?Triplet,
@@ -20,7 +21,7 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     const config = parseArgs();
-    try mh(allocator, r, config.steps, config.size, config.sts);
+    try mh(allocator, r, config.steps, config.size, config.sts, "res.txt");
 }
 
 fn parseArgs() struct { steps: usize, size: usize, sts: []const Triplet } {
@@ -46,9 +47,14 @@ pub fn mh(
     steps: usize,
     maxBits: usize,
     startSts: []const Triplet,
+    out_file: []const u8,
 ) !void {
-    var seen = std.AutoHashMap(u64, void).init(allocator);
-    defer seen.deinit();
+    var seen: [saveBeforeFlush]u64 = undefined;
+
+    var file = try std.fs.cwd().createFile(out_file, .{.truncate = false});
+    defer file.close();
+    try file.seekFromEnd(0);
+    var writer = file.writer();
 
     var sample_buf = try allocator.alloc(usize, maxBits);
     defer allocator.free(sample_buf);
@@ -61,35 +67,47 @@ pub fn mh(
     defer f.ones.deinit();
     f.ones.appendSliceAssumeCapacity(startSts);
 
-    var i: usize = 0;
     var xp: Triplet = undefined;
     var yp: Triplet = undefined;
     var zp: Triplet = undefined;
     var triplet: TripletSplit = undefined;
-    while (i < steps) : (i += 1) {
-        if (f.neg) |neg| {
-            triplet = split(neg, maxBits);
-            xp = chooseComp(r, f, triplet.y + triplet.z);
-            yp = chooseComp(r, f, triplet.x + triplet.z);
-            zp = chooseComp(r, f, triplet.x + triplet.y);
-        } else {
-            triplet = chooseRandomZero(sample, f);
-            xp = findComp(f, triplet.y + triplet.z);
-            yp = findComp(f, triplet.x + triplet.z);
-            zp = findComp(f, triplet.x + triplet.y);
-        }
-        move(&f, triplet.x, triplet.y, triplet.z, xp, yp, zp);
 
-        if (f.neg == null) {
-            std.sort.sort(usize, f.ones.items, {}, comptime std.sort.asc(usize));
-            var hasher = std.hash.Wyhash.init(0);
-            for (f.ones.items) |*element| {
-                hasher.update(std.mem.asBytes(element));
+    var stepsCounter: usize = 0;
+    while (stepsCounter < steps) {
+        var seenIndex: usize = 0;
+        while (seenIndex < saveBeforeFlush and stepsCounter < steps) : (stepsCounter += 1) {
+            if (f.neg) |neg| {
+                triplet = split(neg, maxBits);
+                xp = chooseComp(r, f, triplet.y + triplet.z);
+                yp = chooseComp(r, f, triplet.x + triplet.z);
+                zp = chooseComp(r, f, triplet.x + triplet.y);
+            } else {
+                triplet = chooseRandomZero(sample, f);
+                xp = findComp(f, triplet.y + triplet.z);
+                yp = findComp(f, triplet.x + triplet.z);
+                zp = findComp(f, triplet.x + triplet.y);
             }
-            try seen.put(hasher.final(), {});
+            move(&f, triplet.x, triplet.y, triplet.z, xp, yp, zp);
+
+            if (f.neg == null) {
+                std.sort.sort(usize, f.ones.items, {}, comptime std.sort.asc(usize));
+                var hasher = std.hash.Wyhash.init(0);
+                for (f.ones.items) |*element| {
+                    hasher.update(std.mem.asBytes(element));
+                }
+                seen[seenIndex] = hasher.final();
+                seenIndex += 1;
+            }
+        }
+
+        {
+            var i: usize = 0;
+            while(i < seenIndex):(i += 1) {
+                try std.fmt.format(writer, "{}\n", .{seen[i]});
+            }
+            try std.fmt.format(writer, "-- {}\n", .{stepsCounter});
         }
     }
-    std.debug.print("seen {}\n", .{seen.count()});
 }
 
 fn setToZero(comptime T: type, list: []T, x: T) void {
