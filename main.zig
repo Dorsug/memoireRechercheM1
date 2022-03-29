@@ -29,7 +29,15 @@ fn parseArgs() struct { steps: usize, size: usize, sts: []const Triplet } {
     var steps: usize = 0;
     var sts_index: usize = 7;
 
-    var it = std.process.ArgIterator.init();
+    var buf: [0xfff]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(buf[0..]);
+    const allocator = fba.allocator();
+
+    var it = std.process.ArgIterator.initWithAllocator(allocator) catch {
+        return .{ .steps = steps, .size = sts_index, .sts = initialSTS[sts_index] };
+    };
+    defer it.deinit();
+
     _ = it.next(); // skip program name
     if (it.next()) |arg| {
         steps = std.fmt.parseInt(usize, arg, 10) catch steps;
